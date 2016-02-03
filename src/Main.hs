@@ -33,7 +33,6 @@ answerMessages broadcastChan = do
   chan <- atomically $ dupTChan broadcastChan -- dupTChan for every recursive call ?
   forever $ do
     msg <- atomically $ readTChan chan
-    _ <- respond msg "Looking that up for you"
     hoogleRes <- H.query (fromJust $ text msg) Nothing Nothing -- avoid fromJust
     putStrLn $ show hoogleRes
     respond msg (either err formatHoogleResponse hoogleRes)
@@ -58,7 +57,9 @@ retrieveMessages broadcastChan offset = do
 
 formatHoogleResponse :: H.HoogleQuery -> Text
 formatHoogleResponse qry =
-  let formatRes r = "[" <> (H.self r) <> "](" <> (H.location r) <> ")\n"
+  let formatRes r = "\n[" <> (H.self r) <> "]("
+                 <> (H.location r) <> ")"
+                 <> "```" <> (H.docs r) <> "```"
     in mconcat $ map formatRes $ H.results qry
 
 respond :: Message -> Text-> IO ()
