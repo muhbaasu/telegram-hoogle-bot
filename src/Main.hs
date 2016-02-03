@@ -2,6 +2,8 @@
 
 module Main where
 
+import qualified HoogleApi as H
+
 import Control.Monad
 import Control.Monad.STM
 import Control.Concurrent (threadDelay, forkIO)
@@ -16,7 +18,7 @@ token :: Token
 token = Token ""
 
 pollTimeout :: Int
-pollTimeout = 30 -- seconds
+pollTimeout = 300 -- seconds
 
 main :: IO ()
 main = do
@@ -28,10 +30,14 @@ main = do
 
 answerMessages :: TChan Message -> IO ()
 answerMessages broadcastChan = do
-  chan <- atomically $ dupTChan broadcastChan
+  chan <- atomically $ dupTChan broadcastChan -- dupTChan for every recursive call ?
   forever $ do
     msg <- atomically $ readTChan chan
-    respond msg (response (fromJust $ text msg)) -- avoid fromJust
+    _ <- respond msg "Looking that up for you"
+    hoogleRes <- H.query (fromJust $ text msg) Nothing Nothing -- avoid fromJust
+    putStrLn $ show hoogleRes
+    respond msg (either err formatHoogleResponse hoogleRes)
+    where err = \_ -> "Failed to contact hoogle"
 
 retrieveMessages :: TChan Message -> Maybe Int -> IO ()
 retrieveMessages broadcastChan offset = do
@@ -43,15 +49,17 @@ retrieveMessages broadcastChan offset = do
       threadDelay $ 5 * (10 ^ 6) -- 5 seconds in microseconds
       retrieveMessages broadcastChan offset
     Right r -> do
+      putStrLn $ show r
       let msgs = catMaybes $ map message (update_result r)
           writeMsg m = atomically $ writeTChan broadcastChan m
         in mapM_ writeMsg msgs
       let maxOffset = maximum $ map update_id (update_result r)
         in retrieveMessages broadcastChan $ Just (maxOffset + 1)
 
-response :: Text -> Text
-response "query"  = "QUERY oh yeah!"
-response _        = "WHAT?"
+formatHoogleResponse :: H.HoogleQuery -> Text
+formatHoogleResponse qry =
+  let formatRes r = "[" <> (H.self r) <> "](" <> (H.location r) <> ")\n"
+    in mconcat $ map formatRes $ H.results qry
 
 respond :: Message -> Text-> IO ()
 respond req answer = do
