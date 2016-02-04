@@ -21,6 +21,7 @@ executable telegram-hoogle-bot
   -- other-modules:
   -- other-extensions:
   build-depends:       aeson >= 0.9
+                     , async >= 2.1
                      , base >=4.8 && <4.9
                      , either >= 4.4
                      , lens >= 4.13
